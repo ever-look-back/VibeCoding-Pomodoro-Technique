@@ -1,9 +1,13 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
+import { createTray, destroyTray } from './tray';
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
-function createWindow(): void {
+let mainWindow: BrowserWindow | null = null;
+let isQuitting = false;
+
+function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 360,
     height: 500,
@@ -26,18 +30,49 @@ function createWindow(): void {
     win.show();
   });
 
+  // 关闭窗口 → 隐藏到托盘（不退出）
+  win.on('close', (e) => {
+    if (!isQuitting) {
+      e.preventDefault();
+      win.hide();
+    }
+  });
+
   if (isDev) {
     win.loadURL('http://localhost:5173');
     win.webContents.openDevTools({ mode: 'detach' });
   } else {
     win.loadFile(path.join(__dirname, '../dist/index.html'));
   }
+
+  return win;
 }
 
-app.whenReady().then(createWindow);
+// ── IPC 处理器 ──
+function registerIpcHandlers(): void {
+  ipcMain.on('window:minimize-to-tray', () => {
+    mainWindow?.hide();
+  });
+
+  ipcMain.handle('app:get-version', () => {
+    return app.getVersion();
+  });
+}
+
+// ── 应用生命周期 ──
+isQuitting = false;
+
+app.whenReady().then(() => {
+  registerIpcHandlers();
+  mainWindow = createWindow();
+  createTray(mainWindow);
+});
+
+app.on('before-quit', () => {
+  isQuitting = true;
+});
 
 app.on('window-all-closed', () => {
-  // Windows 上不退出，而是持续在托盘运行（Phase 4 实现）
   if (process.platform !== 'darwin') {
     app.quit();
   }
@@ -45,6 +80,16 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+    mainWindow = createWindow();
+    if (mainWindow) {
+      createTray(mainWindow);
+    }
+  } else if (mainWindow) {
+    mainWindow.show();
+    mainWindow.focus();
   }
+});
+
+app.on('will-quit', () => {
+  destroyTray();
 });

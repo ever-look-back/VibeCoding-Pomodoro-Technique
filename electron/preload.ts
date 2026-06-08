@@ -1,6 +1,21 @@
-import { contextBridge } from 'electron';
+import { contextBridge, ipcRenderer } from 'electron';
 
-// Phase 4-5 将在此暴露 system tray / notification 相关 API
-contextBridge.exposeInMainWorld('electronAPI', {
+export interface ElectronAPI {
+  platform: string;
+  minimizeToTray: () => void;
+  getAppVersion: () => Promise<string>;
+}
+
+const electronAPI: ElectronAPI = {
   platform: process.platform,
-});
+
+  minimizeToTray: () => {
+    ipcRenderer.send('window:minimize-to-tray');
+  },
+
+  getAppVersion: () => {
+    return ipcRenderer.invoke('app:get-version');
+  },
+};
+
+contextBridge.exposeInMainWorld('electronAPI', electronAPI);
