@@ -2,44 +2,42 @@ import { app, BrowserWindow, Menu, nativeImage, Tray } from 'electron';
 
 let tray: Tray | null = null;
 
-/** 用像素数据生成 16x16 番茄红圆形图标 */
+/** 用像素数据生成 16x16 番茄红圆形托盘图标 */
 function createTrayIcon(): Electron.NativeImage {
   const size = 16;
-  const buffer = Buffer.alloc(size * size * 4); // BGRA
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = size / 2 - 1.5;
+  const raw = Buffer.alloc(size * size * 4); // BGRA
+  const cx = (size - 1) / 2;
+  const cy = (size - 1) / 2;
+  const r = (size - 2) / 2;
 
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const dx = x - cx + 0.5;
-      const dy = y - cy + 0.5;
+      const dx = x - cx;
+      const dy = y - cy;
       const dist = Math.sqrt(dx * dx + dy * dy);
       const i = (y * size + x) * 4;
 
       if (dist <= r) {
-        // Border
-        if (dist > r - 1.5) {
-          buffer[i] = 0x55;     // B (darker border)
-          buffer[i + 1] = 0x20;
-          buffer[i + 2] = 0x8a;
-          buffer[i + 3] = 0xff;
-        } else {
-          buffer[i] = 0x35;     // B
-          buffer[i + 1] = 0x39; // G
-          buffer[i + 2] = 0xe5; // R
-          buffer[i + 3] = 0xff; // A
-        }
+        const edge = dist > r - 1;
+        raw[i]     = edge ? 0x2a : 0x35; // B
+        raw[i + 1] = edge ? 0x2e : 0x39; // G
+        raw[i + 2] = edge ? 0xbe : 0xe5; // R
+        raw[i + 3] = 0xff;               // A
       }
-      // 其余保持透明
+      // 其余保持全透明
     }
   }
 
-  return nativeImage.createFromBuffer(buffer, {
+  // 先创建 raw NativeImage，再通过 PNG 编码 → 解码，
+  // 确保 Windows 托盘能正确渲染
+  const rawImage = nativeImage.createFromBuffer(raw, {
     width: size,
     height: size,
     scaleFactor: 1.0,
   });
+
+  const pngBuffer = rawImage.toPNG();
+  return nativeImage.createFromBuffer(pngBuffer, { scaleFactor: 1.0 });
 }
 
 /** 创建系统托盘 */
