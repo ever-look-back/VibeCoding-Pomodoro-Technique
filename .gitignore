@@ -1,0 +1,20 @@
+node_modules/
+dist/
+dist-electron/
+.npm-cache/
+*.log
+.DS_Store
+Thumbs.db
+
+# Electron build output
+release/
+out/
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# Env
+.env
+.env.local
